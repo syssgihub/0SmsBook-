@@ -1,0 +1,392 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💎 SMSBook Messenger</title>
+    <!-- MQTT Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #0084ff;
+            --glass-bg: rgba(255, 255, 255, 0.12);
+            --glass-border: rgba(255, 255, 255, 0.25);
+            --text-main: #ffffff;
+            --text-muted: #cbd5e1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 35%, #312e81 70%, #4c1d95 100%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .hidden { display: none !important; }
+
+        /* Login Screen */
+        #login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .login-box {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            width: 320px;
+            text-align: center;
+        }
+        .login-box h1 { color: #fff; margin-bottom: 20px; font-size: 32px; }
+
+        /* Messenger Layout */
+        .messenger-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            height: 100vh;
+            max-width: 1000px;
+            margin: 0 auto;
+            border-left: 1px solid var(--glass-border);
+            border-right: 1px solid var(--glass-border);
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(10px);
+        }
+
+        /* Sidebar - Users list */
+        .sidebar {
+            border-right: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .sidebar-header {
+            padding: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .users-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .user-item {
+            padding: 12px 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            margin-bottom: 8px;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+        .user-item:hover, .user-item.active {
+            background: rgba(0, 132, 255, 0.3);
+        }
+        .user-avatar {
+            width: 36px; height: 36px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        /* Chat Area */
+        .chat-area {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .chat-header {
+            padding: 15px 20px;
+            background: rgba(15, 23, 42, 0.8);
+            border-bottom: 1px solid var(--glass-border);
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .msg-bubble {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            font-size: 14px;
+            word-break: break-word;
+            line-height: 1.4;
+        }
+        .msg-bubble.sent {
+            background: var(--primary);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .msg-bubble.received {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        .msg-img {
+            max-width: 200px;
+            border-radius: 10px;
+            margin-top: 6px;
+            display: block;
+        }
+
+        /* Chat Input Box */
+        .chat-input-container {
+            padding: 15px;
+            background: rgba(15, 23, 42, 0.8);
+            border-top: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .chat-input-container input[type="text"] {
+            flex: 1;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            color: white;
+            outline: none;
+            font-size: 14px;
+        }
+        .chat-input-container input[type="text"]::placeholder { color: var(--text-muted); }
+        
+        .file-upload-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            color: #fff;
+            padding: 5px;
+        }
+        .send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .send-btn:hover { opacity: 0.9; }
+
+        input[type="text"].login-input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: #fff;
+            margin-bottom: 15px;
+            outline: none;
+            box-sizing: border-box;
+            text-align: center;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-container">
+        <div class="login-box">
+            <h1>💎 SMSBook</h1>
+            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px;">Entrez votre pseudo pour discuter</p>
+            <input type="text" id="username-input" class="login-input" placeholder="Votre nom...">
+            <button class="send-btn" style="width: 100%; border-radius: 10px;" onclick="loginUser()">Commencer</button>
+        </div>
+    </div>
+
+    <!-- MESSENGER INTERFACE -->
+    <div id="app-container" class="hidden messenger-container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <span>💬 Chats</span>
+                <span style="font-size: 12px; color: #4ade80;" id="my-name-display"></span>
+            </div>
+            <div class="users-list" id="users-list">
+                <div style="color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 20px;">Recherche d'utilisateurs...</div>
+            </div>
+        </div>
+
+        <!-- CHAT AREA -->
+        <div class="chat-area">
+            <div class="chat-header" id="chat-header-title">Sélectionnez une discussion</div>
+            <div class="chat-messages" id="chat-messages">
+                <div style="color: var(--text-muted); text-align: center; margin-top: auto; margin-bottom: auto;">Choisissez un contact à gauche pour commencer à envoyer des messages.</div>
+            </div>
+            
+            <div class="chat-input-container" id="input-box-area" style="display: none;">
+                <label class="file-upload-btn" title="Envoyer une image">
+                    📷 <input type="file" id="image-file-input" accept="image/*" style="display: none;" onchange="sendImage(this)">
+                </label>
+                <input type="text" id="msg-input" placeholder="Aa..." onkeypress="if(event.key === 'Enter') sendTextMessage()">
+                <button class="send-btn" onclick="sendTextMessage()">Envoyer</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const MQTT_BROKER = "wss://broker.hivemq.com:8000/mqtt";
+    let client = null;
+    let currentUser = "";
+    let activeChatUser = "";
+    let onlineUsers = new Set();
+
+    function loginUser() {
+        let name = document.getElementById('username-input').value.trim();
+        if(!name) return alert("Veuillez entrer un pseudo !");
+        
+        currentUser = name;
+        document.getElementById('my-name-display').innerText = "👤 " + currentUser;
+        document.getElementById('login-container').classList.add('hidden');
+        document.getElementById('app-container').classList.remove('hidden');
+
+        initMQTT();
+    }
+
+    function initMQTT() {
+        client = mqtt.connect(MQTT_BROKER);
+
+        client.on('connect', () => {
+            console.log("Connecté au serveur MQTT");
+            
+            // Reo rehetra mandre ny fisian'ny mpikambana
+            client.subscribe("smsbook/messenger/presence");
+            
+            // Mandefa ny anarana mba ho hitan'ny hafa fa hoe misy olona tonga
+            setInterval(() => {
+                client.publish("smsbook/messenger/presence", currentUser);
+            }, 3000);
+            client.publish("smsbook/messenger/presence", currentUser);
+        });
+
+        client.on('message', (topic, message) => {
+            let msgStr = message.toString();
+
+            // Raha momba ny olona ao anaty réseau (presence)
+            if(topic === "smsbook/messenger/presence") {
+                if(msgStr !== currentUser && !onlineUsers.has(msgStr)) {
+                    onlineUsers.add(msgStr);
+                    updateUsersList();
+                }
+            } 
+            // Raha hafatra manokana (chat private)
+            else if(topic.startsWith("smsbook/messenger/chat/")) {
+                try {
+                    let data = JSON.parse(msgStr);
+                    // Hamarino raha ho an'ity resaka misokatra ity ilay hafatra
+                    let expectedRoom = getRoomName(currentUser, activeChatUser);
+                    if(topic.endsWith(expectedRoom)) {
+                        appendMessage(data.sender, data.text, data.img);
+                    }
+                } catch(e) { console.error(e); }
+            }
+        });
+    }
+
+    function updateUsersList() {
+        let listDiv = document.getElementById('users-list');
+        listDiv.innerHTML = "";
+        
+        onlineUsers.forEach(user => {
+            listDiv.innerHTML += `
+                <div class="user-item ${activeChatUser === user ? 'active' : ''}" onclick="selectUser('${user}')">
+                    <div class="user-avatar">${user.charAt(0).toUpperCase()}</div>
+                    <div>${user}</div>
+                </div>
+            `;
+        });
+    }
+
+    function selectUser(username) {
+        activeChatUser = username;
+        document.getElementById('chat-header-title').innerText = "Discussion avec " + username;
+        document.getElementById('input-box-area').style.display = "flex";
+        
+        let msgBox = document.getElementById('chat-messages');
+        msgBox.innerHTML = `<div style="color: var(--text-muted); text-align: center; font-size: 12px; margin: 10px 0;">Début de l'historique avec ${username}</div>`;
+
+        // Atokana ny "Topic" an'izy roa mba tsy ho hitan'ny hafa
+        let room = getRoomName(currentUser, activeChatUser);
+        client.subscribe("smsbook/messenger/chat/" + room);
+        
+        updateUsersList();
+    }
+
+    function getRoomName(u1, u2) {
+        return u1 < u2 ? `${u1}_${u2}` : `${u2}_${u1}`;
+    }
+
+    function sendTextMessage() {
+        let input = document.getElementById('msg-input');
+        let text = input.value.trim();
+        if(!text || !activeChatUser) return;
+
+        let room = getRoomName(currentUser, activeChatUser);
+        let payload = { sender: currentUser, text: text, img: null };
+        
+        client.publish("smsbook/messenger/chat/" + room, JSON.stringify(payload));
+        input.value = "";
+    }
+
+    // Fikarakarana ny sary alaina avy ao amin'ny Galerie-n'ny phone
+    function sendImage(inputElement) {
+        let file = inputElement.files[0];
+        if(!file || !activeChatUser) return;
+
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            let base64Image = e.target.result; // Ovay ho lasa format text ny sary
+            let room = getRoomName(currentUser, activeChatUser);
+            let payload = { sender: currentUser, text: "📷 [Image]", img: base64Image };
+            
+            client.publish("smsbook/messenger/chat/" + room, JSON.stringify(payload));
+        };
+        reader.readAsDataURL(file);
+        inputElement.value = ""; // Voadio mba ahafahana mitsapa azy indray
+    }
+
+    function appendMessage(sender, text, imgBase64) {
+        let msgBox = document.getElementById('chat-messages');
+        let isSent = sender === currentUser;
+
+        let imgHTML = imgBase64 ? `<img src="${imgBase64}" class="msg-img">` : "";
+        let textHTML = text !== "📷 [Image]" ? `<div>${text}</div>` : "";
+
+        msgBox.innerHTML += `
+            <div class="msg-bubble ${isSent ? 'sent' : 'received'}">
+                ${textHTML}
+                ${imgHTML}
+            </div>
+        `;
+        msgBox.scrollTop = msgBox.scrollHeight;
+    }
+</script>
+</body>
+</html>
